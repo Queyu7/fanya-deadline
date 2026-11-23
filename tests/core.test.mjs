@@ -20,6 +20,11 @@ test('partial sync preserves stale courses but removes submitted work from succe
   const state={...fresh(),items:[{key:'old',courseKey:course.key},{key:'keep',courseKey:second.key}]};const result=await synchronize(host,state,()=>{},async()=>{});assert.deepEqual(result.items,[{key:'keep',courseKey:second.key,stale:true}]);assert.equal(result.errors.length,1);
 });
 test('login expiry never replaces cache',async()=>{await assert.rejects(synchronize({go:()=>{},probe:()=>({type:'login'})},fresh(),()=>{},async()=>{}),/完成登录/);});
+test('additional assignment pages are merged and overlapping rows deduplicated',async()=>{
+  const raw=id=>({id,title:'练习',status:'未交',timer:'剩余2小时'});
+  const queue=[{type:'courses',courses:[course]},{type:'work',items:[raw('1')],issues:[],more:true},{type:'work',items:[raw('1'),raw('2')],issues:[]}];
+  const result=await synchronize({go:()=>{},probe:()=>queue.shift()},fresh(),()=>{},async()=>{});assert.equal(result.items.length,2);assert.deepEqual(result.errors,[]);
+});
 const probe=readFileSync(new URL('../web/probe.js',import.meta.url),'utf8');
 function sample(body){const {document}=parseHTML(`<html><body>${body}</body></html>`);return runInNewContext(probe,{document,location:new URL('https://mooc1.chaoxing.com/mooc2/work/list'),URL});}
 test('actual card structure: skip submitted, retain pending without a deadline',()=>{

@@ -32,7 +32,7 @@ export function schedule(state, now=Date.now()) {
 export const fresh = () => ({items:[], synced:0, count:0, errors:[], enabled:false, hours:24});
 export async function synchronize(host, state, report, pause = ms=>new Promise(resolve=>setTimeout(resolve,ms))) {
   async function read(url, expected) {
-    await host.go(url);
+    if(url) await host.go(url);
     for (let step=0;step<50;step++) {
       await pause(450);
       const page = await host.probe();
@@ -43,15 +43,24 @@ export async function synchronize(host, state, report, pause = ms=>new Promise(r
     }
     throw new Error('页面未能识别或加载超时');
   }
+  async function pages(url,type){
+    const first=await read(url,type),result={...first};let page=first;
+    const field=type==='courses'?'courses':'items';result[field]=[...first[field]];
+    for(let index=1;page.more && !page.stuck && index<50;index++){
+      try{page=await read(null,type);}catch(error){if(/完成登录/.test(error.message))throw error;break;}
+      result[field].push(...page[field]);if(result.issues)result.issues.push(...page.issues);
+    }
+    result.more=!!page.more;if(result.issues && result.more)result.issues.push('平台还有未读取的分页');return result;
+  }
   report('读取我学的课程…');
-  const index = await read(HOME,'courses');
+  const index = await pages(HOME,'courses');
   const courses = [...new Map(index.courses.map(course=>[course.key,course])).values()];
   const items=[], errors=index.more?['课程目录有未读取的分页']:[];
   for (const [position,course] of courses.entries()) {
     report(`${position+1}/${courses.length} · ${course.name}`);
     const prior = state.items.filter(item=>item.courseKey===course.key);
     try {
-      const page = await read(course.url,'work');
+      const page = await pages(course.url,'work');
       const updated = mergeCourse(course,page.items,prior,Date.now());
       items.push(...updated);
       if (page.issues.length) {

@@ -30,6 +30,7 @@ public class Main extends Activity {
         CookieManager.getInstance().setAcceptThirdPartyCookies(view,true);
         view.setWebViewClient(new WebViewClient(){@Override public boolean shouldOverrideUrlLoading(WebView web,WebResourceRequest request){return !safe(request.getUrl().toString());}
             @Override public void onPageStarted(WebView web,String url,android.graphics.Bitmap icon){if(scan)ready=false;}
+            @Override public void onPageCommitVisible(WebView web,String url){if(scan && url.equals(web.getUrl()))ready=true;}
             @Override public void onPageFinished(WebView web,String url){if(scan && url.equals(web.getUrl()))ready=true;CookieManager.getInstance().flush();}
         });return view;}
     void openLogin(){if(overlay!=null)return;overlay=new LinearLayout(this);overlay.setOrientation(LinearLayout.VERTICAL);overlay.setBackgroundColor(-1);root.addView(overlay);Button done=new Button(this);done.setText("完成登录，返回作业看板");done.setOnClickListener(view->closeLogin());overlay.addView(done);login=portal(false);overlay.addView(login,new LinearLayout.LayoutParams(-1,0,1));login.loadUrl(HOME);}

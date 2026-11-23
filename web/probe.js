@@ -2,6 +2,18 @@
   if (location.protocol !== 'https:' || !/(^|\.)chaoxing\.com$/.test(location.hostname)) return { type: 'unsupported' };
   const one = selector => document.querySelector(selector);
   const text = element => (element?.textContent || '').trim();
+  const nextControl = scope => [...scope.querySelectorAll('a, button')].find(el=>/^(下一页|加载更多)$/.test(text(el) || el.title) && el.getClientRects().length && !el.closest(':disabled,.disabled,[aria-disabled=true]'));
+  const paging = (scope,signature) => {
+    const next=nextControl(scope);
+    if (!next) return {more:false};
+    const tracker=document.documentElement.dataset;
+    if (tracker.keqiLast===signature) {
+      if (Date.now()-Number(tracker.keqiAt)>8000) return {more:true,stuck:true};
+      return {waiting:true};
+    }
+    tracker.keqiLast=signature;tracker.keqiAt=String(Date.now());
+    setTimeout(()=>next.click(),40);return {more:true};
+  };
   const safe = value => {
     try {
       const url = new URL(value, location.href);
@@ -21,7 +33,7 @@
       const course = params.get('courseid'), group = params.get('clazzid');
       return course && group ? [{key:course + ':' + group, name:text(anchor), url}] : [];
     });
-    if (courses.length) return {type:'courses', courses, more:!![...list.querySelectorAll('a')].find(el=>/下一页|加载更多/.test(text(el)))};
+    if (courses.length) {const page=paging(list,courses.map(item=>item.key).join(','));return page.waiting?{type:'waiting'}:{type:'courses',courses,...page};}
     if (/暂无课程|还没有课程/.test(text(list))) return {type:'courses', courses:[]};
   }
   if (location.pathname.includes('/mycourse/stu')) {
@@ -45,11 +57,10 @@
       if (!title || !id) { issues.push('未识别的作业卡片'); continue; }
       items.push({id,title,status:status || '状态待核对',timer});
     }
-    const body = text(document.body);
+    const body = document.body.innerText || text(document.body);
     if (rows.length || /暂无作业|没有作业|暂无数据|还没有作业/.test(body)) {
-      const next = [...document.querySelectorAll('a,button')].find(el=>/^(下一页|加载更多)$/.test(text(el)) && el.getClientRects().length && !el.matches(':disabled,.disabled,[aria-disabled=true]'));
-      if (next) issues.push('平台还有未读取的分页');
-      return {type:'work', items, issues};
+      const page=paging(document,rows.map(row=>row.getAttribute('data')).join('|'));
+      return page.waiting?{type:'waiting'}:{type:'work', items, issues,...page};
     }
   }
   return {type:'waiting'};
