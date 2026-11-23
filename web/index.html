@@ -1,0 +1,7 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'"><title>课期 · 作业看板</title><link rel="stylesheet" href="app.css"></head>
+<body><main><header><strong><i>期</i> 课期</strong><span>个人学习工作台</span><button id="login">平台登录</button></header>
+<section class="hero"><p class="eyebrow">COURSE PLANNER　/　01</p><h1>作业看板</h1><p>把散落在各门课里的截止日期，放在一起。</p><button class="primary" id="sync">同步全部课程 ↻</button></section>
+<section class="metrics" aria-label="作业统计"><div><small>待处理作业</small><b id="total">—</b></div><div><small>24 小时内截止</small><b id="urgent">—</b></div><div><small>已过截止</small><b id="late">—</b></div></section>
+<div class="bar"><h2>截止清单</h2><select id="order" aria-label="截止时间排序"><option value="asc">最近截止优先</option><option value="desc">最晚截止优先</option></select></div><p id="status" role="status"></p><details id="issues" hidden><summary>查看未完整同步的课程</summary><ul></ul></details><section id="list" aria-label="作业清单"></section>
+<footer><div><h2>截止提醒</h2><p id="hint"></p></div><label><input id="enabled" type="checkbox"> 系统通知</label><select id="hours" aria-label="提前提醒时间"><option value="1">提前 1 小时</option><option value="6">提前 6 小时</option><option value="24">提前 24 小时</option><option value="48">提前 48 小时</option></select></footer><p class="fine">仅在此设备保存 · 不提交或修改课程作业</p></main><script type="module" src="app.mjs"></script></body></html>

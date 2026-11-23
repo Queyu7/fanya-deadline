@@ -1,0 +1,8 @@
+node_modules/
+dist/
+build/
+*.p12
+*.pem
+*.keystore
+*.jks
+.DS_Store

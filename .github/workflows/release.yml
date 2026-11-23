@@ -1,0 +1,74 @@
+name: Build and release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - run: npm ci && npm test
+        env: {ELECTRON_SKIP_BINARY_DOWNLOAD: '1'}
+  desktop:
+    needs: test
+    strategy:
+      matrix:
+        include:
+          - {os: macos-latest, platform: darwin, arch: arm64, asset: Keqi-macOS-AppleSilicon.zip}
+          - {os: macos-latest, platform: darwin, arch: x64, asset: Keqi-macOS-Intel.zip}
+          - {os: windows-latest, platform: win32, arch: x64, asset: Keqi-Windows-x64.zip}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '24'}
+      - run: npm ci
+        env: {ELECTRON_SKIP_BINARY_DOWNLOAD: '1'}
+      - run: npm run package -- ${{ matrix.platform }} ${{ matrix.arch }}
+      - if: runner.os == 'macOS'
+        run: |
+          app="dist/Keqi-darwin-${{ matrix.arch }}/Keqi.app"
+          codesign --force --deep --sign - "$app"
+          codesign --verify --deep --strict "$app"
+          ditto -c -k --keepParent "$app" "${{ matrix.asset }}"
+      - if: runner.os == 'Windows'
+        run: Compress-Archive -Path dist/Keqi-win32-x64 -DestinationPath ${{ matrix.asset }}
+      - uses: actions/upload-artifact@v4
+        with: {name: '${{ matrix.asset }}', path: '${{ matrix.asset }}'}
+  android:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+      - run: |
+          umask 077
+          export KEYSTORE="$RUNNER_TEMP/release.p12"
+          trap 'rm -f "$KEYSTORE"' EXIT
+          printf '%s' "$ANDROID_STORE" | base64 -d > "$KEYSTORE"
+          bash scripts/android.sh
+        env:
+          ANDROID_STORE: ${{ secrets.ANDROID_STORE }}
+          ANDROID_PASS: ${{ secrets.ANDROID_PASS }}
+      - uses: actions/upload-artifact@v4
+        with: {name: Keqi-Android.apk, path: dist/Keqi-Android.apk}
+  release:
+    needs: [desktop, android]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions: {contents: write}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: packages, merge-multiple: true}
+      - working-directory: packages
+        run: |
+          sha256sum *.zip *.apk > SHA256SUMS.txt
+          gh release create "$GITHUB_REF_NAME" *.zip *.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --verify-tag --title "课期 $GITHUB_REF_NAME" --notes 'Android 安装 APK；Windows 解压后启动 Keqi.exe；macOS 按芯片选择 ZIP。Windows 未做 Authenticode 签名，macOS 未做 Apple 公证。使用说明见项目首页。'
+        env: {GH_TOKEN: '${{ github.token }}'}
