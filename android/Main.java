@@ -33,7 +33,7 @@ public class Main extends Activity {
             @Override public void onPageCommitVisible(WebView web,String url){if(scan && url.equals(web.getUrl()))ready=true;}
             @Override public void onPageFinished(WebView web,String url){if(scan && url.equals(web.getUrl()))ready=true;CookieManager.getInstance().flush();}
         });return view;}
-    void openLogin(){if(overlay!=null)return;overlay=new LinearLayout(this);overlay.setOrientation(LinearLayout.VERTICAL);overlay.setBackgroundColor(-1);root.addView(overlay);Button done=new Button(this);done.setText("完成登录，返回作业看板");done.setOnClickListener(view->closeLogin());overlay.addView(done);login=portal(false);overlay.addView(login,new LinearLayout.LayoutParams(-1,0,1));login.loadUrl(HOME);}
+    void openLogin(){if(overlay!=null)return;overlay=new LinearLayout(this);overlay.setOrientation(LinearLayout.VERTICAL);overlay.setBackgroundColor(-1);root.addView(overlay);Button done=new Button(this);done.setText("完成登录，返回作业看板");done.setOnClickListener(view->closeLogin());overlay.addView(done);login=portal(false);overlay.addView(login,new LinearLayout.LayoutParams(-1,0,1));login.loadUrl(Uri.parse("https://passport2.chaoxing.com/login").buildUpon().appendQueryParameter("fid","12").appendQueryParameter("refer",HOME).appendQueryParameter("space","2").build().toString());}
     void closeLogin(){if(overlay==null)return;CookieManager.getInstance().flush();overlay.removeView(login);login.destroy();root.removeView(overlay);overlay=null;}
     @Override public void onBackPressed(){if(overlay!=null)closeLogin();else super.onBackPressed();}
     public class Bridge {
