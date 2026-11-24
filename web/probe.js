@@ -1,4 +1,4 @@
-(() => {
+(mode => {
   if (location.protocol !== 'https:' || !/(^|\.)chaoxing\.com$/.test(location.hostname)) return { type: 'unsupported' };
   const one = selector => document.querySelector(selector);
   const text = element => (element?.textContent || '').trim();
@@ -16,33 +16,49 @@
   };
   const safe = value => {
     try {
-      const url = new URL(value, location.href);
-      return url.protocol === 'https:' && /(^|\.)chaoxing\.com$/.test(url.hostname) ? url.href : '';
+      if (!value || !value.trim()) return '';
+      const url = new URL(value, document.baseURI || location.href);
+      if (!/(^|\.)chaoxing\.com$/.test(url.hostname) || url.username || url.password || url.port) return '';
+      if (url.protocol === 'http:') url.protocol='https:';
+      return url.protocol === 'https:' ? url.href : '';
     } catch { return ''; }
   };
-  if (location.hostname.startsWith('passport') || one('input[type=password]')) return { type: 'login' };
-  if (one('#frame_content') && one('#zne_kc_icon')) {
-    return { type: 'redirect', url: safe(one('#frame_content').src) };
-  }
+  if (/^passport\d*\.chaoxing\.com$/.test(location.hostname) && /(?:^|\/)login(?:\.[a-z]+)?\/?$/i.test(location.pathname) && document.body) return {type:'login'};
+  if (!document.body) return {type:'waiting'};
   const list = one('#stuNormalCourseListDiv');
   if (list) {
-    const courses = [...list.querySelectorAll('h3 a[href]')].flatMap(anchor => {
-      const url = safe(anchor.href);
-      if (!url) return [];
-      const params = new URL(url).searchParams;
-      const course = params.get('courseid'), group = params.get('clazzid');
-      return course && group ? [{key:course + ':' + group, name:text(anchor), url}] : [];
+    const courses = [...list.querySelectorAll('a[href]')].flatMap(anchor => {
+      const name=text(anchor) || anchor.getAttribute('title');
+      const url = safe(anchor.getAttribute('href'));
+      if (!url || !name) return [];
+      const target=new URL(url);
+      if (!/\/(stucoursemiddle|mycourse\/stu)\/?$/i.test(target.pathname)) return [];
+      const params=new Map([...target.searchParams].map(([key,value])=>[key.toLowerCase(),value]));
+      const course=params.get('courseid'), group=params.get('clazzid') || params.get('classid');
+      return course && group ? [{key:course + ':' + group, name, url}] : [];
     });
-    if (courses.length) {const page=paging(list,courses.map(item=>item.key).join(','));return page.waiting?{type:'waiting'}:{type:'courses',courses,...page};}
-    if (/暂无课程|还没有课程/.test(text(list))) return {type:'courses', courses:[]};
+    if (courses.length) {
+      if (mode==='connect') return {type:'connected'};
+      const page=paging(list,courses.map(item=>item.key).join(','));return page.waiting?{type:'waiting'}:{type:'courses',courses,...page};
+    }
+    if (/暂无课程|还没有课程/.test(text(list))) return mode==='connect'?{type:'connected'}:{type:'courses',courses:[]};
+    return {type:'waiting',stage:'course-list'};
   }
+  const courseFrame=one('#frame_content');
+  if (courseFrame && one('#zne_kc_icon')) {
+    const url=safe(courseFrame.getAttribute('src'));
+    return url && /\/visit\/interaction\/?$/.test(new URL(url).pathname) ? {type:'redirect',url} : {type:'waiting',stage:'space'};
+  }
+  if (mode==='connect') return {type:'waiting'};
   if (location.pathname.includes('/mycourse/stu')) {
     const frame = one('#frame_content-zy');
-    if (frame?.getAttribute('src') && /\/work\/list/.test(frame.src)) return {type:'redirect', url:safe(frame.src)};
+    const url=safe(frame?.getAttribute('src'));
+    if (url && /\/work\/list\/?$/.test(new URL(url).pathname)) return {type:'redirect',url};
     const link = [...document.querySelectorAll('a')].find(anchor => text(anchor) === '作业');
     if (link && !document.documentElement.dataset.keqiOpened) {
       document.documentElement.dataset.keqiOpened = '1'; link.click();
     }
+    return {type:'waiting',stage:'course-room'};
   }
   if (/\/work\/list\/?$/.test(location.pathname)) {
     const rows = [...document.querySelectorAll('.bottomList li[role=link], .bottomList li[data]')];
@@ -58,10 +74,11 @@
       items.push({id,title,status:status || '状态待核对',timer});
     }
     const body = document.body.innerText || text(document.body);
-    if (rows.length || /暂无作业|没有作业|暂无数据|还没有作业/.test(body)) {
+    if (rows.length || /暂无(?:相关)?作业|没有(?:发布)?作业|暂无数据|未发布作业/.test(body)) {
       const page=paging(document,rows.map(row=>row.getAttribute('data')).join('|'));
       return page.waiting?{type:'waiting'}:{type:'work', items, issues,...page};
     }
+    return {type:'waiting',stage:'work-list'};
   }
   return {type:'waiting'};
-})()
+})

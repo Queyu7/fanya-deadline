@@ -1,4 +1,7 @@
 export const HOME = 'https://i.mooc.chaoxing.com/space/index';
+const DIRECTORY = 'https://mooc2-ans.chaoxing.com/mooc2-ans/visit/interaction';
+const stages={'space':'课程首页','course-list':'课程目录','course-room':'课程内的作业入口','work-list':'作业列表'};
+class LoginRequired extends Error {}
 export const HOUR = 3600000;
 export function deadline(timer, now) {
   const absolute = timer.match(/(20\d{2})[-/.年](\d{1,2})[-/.月](\d{1,2})日?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/);
@@ -33,29 +36,39 @@ export const fresh = () => ({items:[], synced:0, count:0, errors:[], enabled:fal
 export async function synchronize(host, state, report, pause = ms=>new Promise(resolve=>setTimeout(resolve,ms))) {
   async function read(url, expected) {
     if(url) await host.go(url);
+    let loginChecks=0, stage=expected==='courses'?'课程目录':'课程作业';
+    const redirects=new Set(url?[url]:[]);
     for (let step=0;step<50;step++) {
       await pause(450);
-      const page = await host.probe();
+      const page = await host.probe(expected);
       if (page.type===expected) return page;
-      if (page.type==='redirect' && page.url) await host.go(page.url);
-      if (page.type==='login') throw new Error('请在「平台登录」中完成登录');
+      if (stages[page.stage]) stage=stages[page.stage];
+      if (page.type==='redirect' && page.url && !redirects.has(page.url)) {redirects.add(page.url);await host.go(page.url);}
+      loginChecks=page.type==='login'?loginChecks+1:0;
+      if (loginChecks>=4) throw new LoginRequired(`${stage}：超星返回了登录页，请在课期的「平台登录」中完成登录`);
+      if (page.type==='network') throw new Error(`${stage}：平台连接失败${Number.isInteger(page.code)?'（'+page.code+'）':''}`);
       if (page.type==='unsupported') throw new Error('平台跳转到了不支持的域名');
     }
-    throw new Error('页面未能识别或加载超时');
+    throw new Error(`${stage}加载超时或页面未能识别`);
   }
   async function pages(url,type){
     const first=await read(url,type),result={...first};let page=first;
     const field=type==='courses'?'courses':'items';result[field]=[...first[field]];
     for(let index=1;page.more && !page.stuck && index<50;index++){
-      try{page=await read(null,type);}catch(error){if(/完成登录/.test(error.message))throw error;break;}
+      try{page=await read(null,type);}catch(error){if(error instanceof LoginRequired)throw error;break;}
       result[field].push(...page[field]);if(result.issues)result.issues.push(...page.issues);
     }
     result.more=!!page.more;if(result.issues && result.more)result.issues.push('平台还有未读取的分页');return result;
   }
   report('读取我学的课程…');
-  const index = await pages(HOME,'courses');
+  let index;
+  try {index=await pages(HOME,'courses');} catch {
+    report('课程首页未能读取，正在核对官方课程目录…');
+    index=await pages(DIRECTORY,'courses');
+  }
   const courses = [...new Map(index.courses.map(course=>[course.key,course])).values()];
   const items=[], errors=index.more?['课程目录有未读取的分页']:[];
+  let readCount=0;
   for (const [position,course] of courses.entries()) {
     report(`${position+1}/${courses.length} · ${course.name}`);
     const prior = state.items.filter(item=>item.courseKey===course.key);
@@ -63,15 +76,17 @@ export async function synchronize(host, state, report, pause = ms=>new Promise(r
       const page = await pages(course.url,'work');
       const updated = mergeCourse(course,page.items,prior,Date.now());
       items.push(...updated);
+      readCount++;
       if (page.issues.length) {
         errors.push(`${course.name}：${page.issues.join('、')}`);
         items.push(...prior.filter(item=>!updated.some(entry=>entry.key===item.key)).map(item=>({...item,stale:true})));
       }
     } catch (error) {
-      if (/完成登录/.test(error.message)) throw error;
+      if (error instanceof LoginRequired) throw error;
       errors.push(course.name+'：'+error.message); items.push(...prior.map(item=>({...item,stale:true})));
     }
   }
+  if (courses.length && !readCount) throw new Error(`已找到 ${courses.length} 门课，但未能读取任何作业列表。${errors[errors.length-1]}`);
   if (index.more) items.push(...state.items.filter(item=>!courses.some(course=>course.key===item.courseKey)).map(item=>({...item,stale:true})));
-  return {items:[...new Map(items.map(item=>[item.key,item])).values()],count:courses.length,errors,synced:Date.now()};
+  return {items:[...new Map(items.map(item=>[item.key,item])).values()],count:courses.length,readCount,errors,synced:Date.now()};
 }

@@ -25,7 +25,7 @@ test('additional assignment pages are merged and overlapping rows deduplicated',
   const queue=[{type:'courses',courses:[course]},{type:'work',items:[raw('1')],issues:[],more:true},{type:'work',items:[raw('1'),raw('2')],issues:[]}];
   const result=await synchronize({go:()=>{},probe:()=>queue.shift()},fresh(),()=>{},async()=>{});assert.equal(result.items.length,2);assert.deepEqual(result.errors,[]);
 });
-const probe=readFileSync(new URL('../web/probe.js',import.meta.url),'utf8');
+const probe=readFileSync(new URL('../web/probe.js',import.meta.url),'utf8')+'()';
 function sample(body){const {document}=parseHTML(`<html><body>${body}</body></html>`);return runInNewContext(probe,{document,location:new URL('https://mooc1.chaoxing.com/mooc2/work/list'),URL});}
 test('actual card structure: skip submitted, retain pending without a deadline',()=>{
   const card=(id,status,timer)=>`<li role="link" data="https://mooc1.chaoxing.com/work?workId=${id}"><div class="right-content"><p>周练</p><p class="status">${status}</p><div class="time">${timer}</div></div></li>`;

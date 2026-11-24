@@ -1,10 +1,10 @@
 {
   "name": "fanya-deadline",
   "productName": "课期",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "private": true,
   "description": "泛雅课程作业截止提醒",
   "main": "desktop/main.cjs",
-  "scripts": {"start":"electron .", "test":"node --test tests/*.test.mjs", "package":"node scripts/package.mjs"},
+  "scripts": {"start":"electron .", "test":"node --test tests/*.test.mjs", "test:desktop":"electron tests/desktop-sync.cjs", "package":"node scripts/package.mjs"},
   "devDependencies": {"electron":"45.4.1", "@electron/packager":"20.3.0", "linkedom":"0.18.12"}
 }

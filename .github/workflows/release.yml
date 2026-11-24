@@ -29,6 +29,10 @@ jobs:
         with: {node-version: '24'}
       - run: npm ci
         env: {ELECTRON_SKIP_BINARY_DOWNLOAD: '1'}
+      - if: runner.os == 'macOS' && matrix.arch == 'arm64'
+        run: |
+          node node_modules/electron/install.js
+          npm run test:desktop
       - run: npm run package -- ${{ matrix.platform }} ${{ matrix.arch }}
       - if: runner.os == 'macOS'
         run: |
@@ -70,5 +74,7 @@ jobs:
       - working-directory: packages
         run: |
           sha256sum *.zip *.apk > SHA256SUMS.txt
-          gh release create "$GITHUB_REF_NAME" *.zip *.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --verify-tag --title "课期 $GITHUB_REF_NAME" --notes 'Android 安装 APK；Windows 解压后启动 Keqi.exe；macOS 按芯片选择 ZIP。Windows 未做 Authenticode 签名，macOS 未做 Apple 公证。使用说明见项目首页。'
+          flags=()
+          if [[ "$GITHUB_REF_NAME" == *-rc.* ]]; then flags=(--prerelease --latest=false); fi
+          gh release create "$GITHUB_REF_NAME" *.zip *.apk SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" --verify-tag "${flags[@]}" --title "课期 $GITHUB_REF_NAME" --notes 'Android 安装 APK；Windows 解压后启动 Keqi.exe；macOS 按芯片选择 ZIP。Windows 未做 Authenticode 签名，macOS 未做 Apple 公证。使用说明见项目首页。'
         env: {GH_TOKEN: '${{ github.token }}'}
